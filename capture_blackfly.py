@@ -5,6 +5,7 @@ import cv2
 import os
 
 from camera.wrapper_pyspin import Blackfly
+from utils.make_hdr import make_hdr
 
 
 cam = Blackfly(pixel_format="BayerRG16")
@@ -32,24 +33,42 @@ def capture_hdr(output_folder_path=None):
     exposures = get_exposure_interval(base_exposure)
     capture_time = time.time()
     real_exposures = []
+    frames = []
 
     for exp in exposures:
         cam.set_exposure(exp, check=False)
         time.sleep(0.05)
         frame, _, _, cur_exp, _ = cam.get_next_image(return_metadata=True)
         real_exposures.append(cur_exp)
+        frames.append(frame)
         print(f"  exposure: {cur_exp:.1f} us, shape: {frame.shape}")
-
-        if output_folder_path is not None:
-            os.makedirs(output_folder_path, exist_ok=True)
-            timestamp_str = time.strftime('%Y%m%d_%H%M%S', time.localtime(capture_time))
-            frame_8bit = (frame / 256).astype(np.uint8)
-            frame_color = cv2.cvtColor(frame_8bit, cv2.COLOR_BayerRG2RGB)
-            cv2.imwrite(os.path.join(output_folder_path, f'vis_exp{cur_exp/1000:.2f}ms_{timestamp_str}.png'), frame_color)
-            np.save(os.path.join(output_folder_path, f'vis_exp{cur_exp/1000:.2f}ms_raw.npy'), frame)
 
     cam.set_exposure(base_exposure, check=False)
     cam.set_auto_exposure()
+
+    frames_stack = np.stack(frames, axis=-1)   # (H, W, N)
+    real_exposures = np.array(real_exposures)
+
+    if output_folder_path is not None:
+        os.makedirs(output_folder_path, exist_ok=True)
+        timestamp_str = time.strftime('%Y%m%d_%H%M%S', time.localtime(capture_time))
+
+        # Save raw multi-exposure stack
+        np.savez(os.path.join(output_folder_path, f'hdr_raw_{timestamp_str}.npz'),
+                 frames=frames_stack, exposures=real_exposures)
+
+        # Save individual debayered previews
+        for frame, cur_exp in zip(frames, real_exposures):
+            frame_color = cv2.cvtColor((frame / 256).astype(np.uint8), cv2.COLOR_BayerRG2RGB)
+            cv2.imwrite(os.path.join(output_folder_path, f'vis_exp{cur_exp/1000:.2f}ms_{timestamp_str}.png'), frame_color)
+
+        # HDR synthesis
+        print("Synthesizing HDR...")
+        hdr, ldr = make_hdr(frames_stack, real_exposures)
+        cv2.imwrite(os.path.join(output_folder_path, f'hdr_ldr_{timestamp_str}.png'), ldr)
+        cv2.imwrite(os.path.join(output_folder_path, f'hdr_radiance_{timestamp_str}.hdr'), hdr)
+        print(f"  HDR saved: hdr_ldr_{timestamp_str}.png, hdr_radiance_{timestamp_str}.hdr")
+
     return capture_time, real_exposures
 
 
