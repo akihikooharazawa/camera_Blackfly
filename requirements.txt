@@ -1,0 +1,9 @@
+numpy
+opencv-python
+matplotlib
+
+# PySpin is not available on PyPI.
+# Install from the FLIR Spinnaker SDK:
+#   https://www.flir.com/products/spinnaker-sdk/
+# After installing the SDK, install the Python wheel:
+#   pip install spinnaker_python-<version>-cp<pyver>-<platform>.whl
