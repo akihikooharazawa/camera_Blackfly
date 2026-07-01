@@ -134,10 +134,12 @@ while True:
     display_img = display.copy()
     if display_text:
         font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 1.3
+        thickness = 3
         if effective_FPS is not None:
-            cv2.putText(display_img, f'FPS: {effective_FPS:.2f}', (10, 30), font, 0.7, (255, 255, 255), 2)
-        cv2.putText(display_img, f'Exposure: {exposure/1000:.2f}ms  Gain: {gain:.1f}dB', (10, 60), font, 0.7, (255, 255, 255), 2)
-        cv2.putText(display_img, f'AutoExp: {"ON" if auto_exposure else "OFF"}', (10, 90), font, 0.7, (255, 255, 255), 2)
+            cv2.putText(display_img, f'FPS: {effective_FPS:.2f}', (15, 45), font, font_scale, (255, 255, 255), thickness)
+        cv2.putText(display_img, f'Exposure: {exposure/1000:.2f}ms  Gain: {gain:.1f}dB', (15, 95), font, font_scale, (255, 255, 255), thickness)
+        cv2.putText(display_img, f'AutoExp: {"ON" if auto_exposure else "OFF"}', (15, 145), font, font_scale, (255, 255, 255), thickness)
 
     cv2.imshow('Blackfly', display_img)
 

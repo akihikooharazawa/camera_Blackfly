@@ -141,6 +141,10 @@ class Blackfly(object):
         return self.cam.ExposureAuto.GetValue()
 
     def set_exposure(self, exposure_time, check=True):
+        # Manual exposure requires auto-exposure OFF: ExposureTime is read-only
+        # while auto-exposure is running, so ensure it is disabled first.
+        if self.get_auto_exposure() != PySpin.ExposureAuto_Off:
+            self.set_auto_exposure(False)
         exposure_time = max(self.min_exp_val, min(self.max_exp_val, exposure_time))
         self.cam.ExposureTime.SetValue(exposure_time)
         self.exposure = self.get_exposure()
@@ -172,6 +176,11 @@ class Blackfly(object):
 
     # --------------- FPS ---------------
     def set_fps(self, fps):
+        # The achievable frame rate depends on the current exposure and pixel
+        # format, so re-query the live node min/max instead of the values cached
+        # at __init__ (otherwise a later, shorter exposure cannot raise the fps).
+        self.min_fps_val = self.cam.AcquisitionFrameRate.GetMin()
+        self.max_fps_val = self.cam.AcquisitionFrameRate.GetMax()
         fps = max(self.min_fps_val, min(self.max_fps_val, fps))
         curr_exp = self.get_exposure()
         self.cam.AcquisitionFrameRate.SetValue(fps)
@@ -184,6 +193,17 @@ class Blackfly(object):
 
     def get_fps(self):
         return self.cam.AcquisitionFrameRate.GetValue()
+
+    def set_framerate_and_exposure(self, fps, exposure_time):
+        # FPS and exposure constrain each other (exposure <= 1/fps, and the max fps
+        # is limited by the exposure). To set both independently, decouple them:
+        #   1) minimize exposure -> the requested fps is always reachable
+        #   2) set fps           -> fixes the frame period (1/fps)
+        #   3) set exposure      -> apply the real value (bounded by the period)
+        self.set_auto_exposure(False)
+        self.set_exposure(self.min_exp_val, check=False)
+        self.set_fps(fps)
+        return self.set_exposure(exposure_time)
 
     # --------------- Acquisition ---------------
     def get_next_image(self, return_metadata=False):
